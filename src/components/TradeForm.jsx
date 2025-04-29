@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { exchangeRateService } from '../lib/exchangeRateService';
 
 /**
  * Komponen form transaksi untuk menambahkan atau mengedit transaksi trading
@@ -58,6 +59,70 @@ export default function TradeForm({
     comment: '',
     images: []
   });
+  
+  const [exchangeRates, setExchangeRates] = useState(null);
+  const [exchangeRateLastUpdated, setExchangeRateLastUpdated] = useState(null);
+  
+  // Fungsi untuk mengambil data kurs dari Exchange Rate API dan database
+  const fetchExchangeRates = async () => {
+    try {
+      // Periksa apakah tabel kosong atau data perlu diperbarui
+      const shouldUpdate = await exchangeRateService.shouldUpdateRates();
+      
+      if (shouldUpdate) {
+        console.log('Perlu memperbarui data kurs mata uang...');
+        // Ambil data baru dari API dan simpan ke database
+        const result = await exchangeRateService.fetchAndSaveExchangeRates();
+        
+        if (!result.success) {
+          console.error('Gagal memperbarui data kurs:', result.error);
+          // Gunakan data dari localStorage sebagai fallback
+          const storedRates = localStorage.getItem('exchangeRates');
+          const storedDate = localStorage.getItem('exchangeRateLastUpdated');
+          
+          if (storedRates && storedDate) {
+            setExchangeRates(JSON.parse(storedRates));
+            setExchangeRateLastUpdated(storedDate);
+            return;
+          }
+          
+          // Jika tidak ada data di localStorage, gunakan nilai default
+          setExchangeRates({ JPY: 143.0 });
+          setExchangeRateLastUpdated(new Date().toISOString());
+          return;
+        }
+      }
+      
+      // Ambil data terbaru dari database
+      const usdJpyRate = await exchangeRateService.getLatestRate('USD', 'JPY');
+      
+      if (usdJpyRate.data) {
+        console.log('Menggunakan data kurs dari database');
+        setExchangeRates({ JPY: usdJpyRate.data.rate });
+        setExchangeRateLastUpdated(usdJpyRate.data.last_updated);
+        
+        // Simpan juga ke localStorage sebagai backup
+        localStorage.setItem('exchangeRates', JSON.stringify({ JPY: usdJpyRate.data.rate }));
+        localStorage.setItem('exchangeRateLastUpdated', usdJpyRate.data.last_updated);
+      } else {
+        console.log('Tidak ada data kurs di database, menggunakan nilai default');
+        // Jika tidak ada data di database, gunakan nilai default
+        setExchangeRates({ JPY: 143.0 });
+        setExchangeRateLastUpdated(new Date().toISOString());
+      }
+    } catch (error) {
+      console.error('Error saat mengambil data kurs:', error);
+      
+      // Gunakan nilai default jika terjadi error
+      setExchangeRates({ JPY: 143.0 });
+      setExchangeRateLastUpdated(new Date().toISOString());
+    }
+  };
+  
+  // Panggil fungsi fetchExchangeRates saat komponen dimuat
+  useEffect(() => {
+    fetchExchangeRates();
+  }, []);
   
   // Effect untuk mengatur ulang form saat modal dibuka atau initialData berubah
   useEffect(() => {
@@ -299,6 +364,37 @@ export default function TradeForm({
     else if (indices.some(index => pairUpper.includes(index))) {
       // Untuk indeks, profit dihitung dengan: perbedaan * lot size * 10
       return (priceDiff * lot * 10).toFixed(2);
+    }
+    // Khusus untuk pair JPY, gunakan perhitungan yang berbeda
+    else if (pairUpper.includes('JPY')) {
+      // 1. Hitung P/L dalam JPY: (Exit - Entry) × Lot × 100,000
+      const plJPY = priceDiff * lot * 100000;
+      
+      // 2. Konversi ke USD berdasarkan jenis pair
+      if (pairUpper.startsWith('USD')) {
+        // Jika Base Currency = USD (contoh: USD/JPY)
+        // P/L (USD) = P/L (JPY) ÷ Exit Price (USD/JPY)
+        return (plJPY / exit).toFixed(2);
+      } else {
+        // Jika Base Currency ≠ USD (contoh: EUR/JPY, GBP/JPY)
+        
+        // Gunakan data kurs dari API atau database jika tersedia
+        if (exchangeRates && exchangeRates.JPY) {
+          // Nilai USD/JPY adalah berapa JPY per 1 USD
+          const usdJpyRate = exchangeRates.JPY;
+          return (plJPY / usdJpyRate).toFixed(2);
+        } else {
+          // Fallback 1: Coba ambil dari memory cache
+          const memoryCachedRate = exchangeRateService.getMemoryCachedRate('USD', 'JPY');
+          if (memoryCachedRate && memoryCachedRate.rate) {
+            return (plJPY / memoryCachedRate.rate).toFixed(2);
+          }
+          
+          // Fallback 2: Gunakan nilai default
+          const defaultRate = exchangeRateService.getDefaultRate('USD', 'JPY');
+          return (plJPY / defaultRate).toFixed(2);
+        }
+      }
     }
     
     // Hitung berapa pip pergerakan harga
