@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Background -->
+  <rect x="0" y="0" width="64" height="64" rx="12" fill="url(#grad)" />
+  
+  <!-- Chart Icon -->
+  <path d="M16 42C16 40.8954 16.8954 40 18 40H22C23.1046 40 24 40.8954 24 42V48C24 49.1046 23.1046 50 22 50H18C16.8954 50 16 49.1046 16 48V42Z" fill="white" />
+  <path d="M28 34C28 32.8954 28.8954 32 30 32H34C35.1046 32 36 32.8954 36 34V48C36 49.1046 35.1046 50 34 50H30C28.8954 50 28 49.1046 28 48V34Z" fill="white" />
+  <path d="M40 20C40 18.8954 40.8954 18 42 18H46C47.1046 18 48 18.8954 48 20V48C48 49.1046 47.1046 50 46 50H42C40.8954 50 40 49.1046 40 48V20Z" fill="white" />
+  
+  <!-- Gradient definition -->
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4f46e5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2563eb;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+</svg> 
