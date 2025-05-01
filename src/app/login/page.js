@@ -117,7 +117,7 @@ export default function Login() {
         </div>
         
         {/* Main content */}
-        <div className="flex flex-col md:flex-row w-full max-w-5xl z-10 px-4 md:px-8 gap-8 md:gap-12 items-center">
+        <div className="flex flex-col md:flex-row w-full max-w-5xl z-10 px-4 md:px-8 gap-8 md:gap-12 items-center py-14">
           {/* Left side - Logo and welcome text */}
           <motion.div 
             className="w-full md:w-1/2 text-center md:text-left"

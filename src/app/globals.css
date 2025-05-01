@@ -25,22 +25,11 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Fix untuk placeholder dan teks input pada mobile */
-input::placeholder {
-  color: #6b7280 !important; /* text-gray-500 */
-  opacity: 1;
-}
-
-/* Untuk perangkat iOS */
-input, textarea {
-  -webkit-text-fill-color: #1f2937; /* text-gray-800 */
-}
 
 /* Styling khusus untuk autofill pada Chrome */
 input:-webkit-autofill,
 input:-webkit-autofill:hover, 
 input:-webkit-autofill:focus {
-  -webkit-text-fill-color: #1f2937;
   -webkit-box-shadow: 0 0 0px 1000px white inset;
   transition: background-color 5000s ease-in-out 0s;
 }

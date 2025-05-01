@@ -825,6 +825,7 @@ export default function TradeForm({
   
   // Effect untuk menghitung risk/reward ratio ketika SL atau TP berubah
   useEffect(() => {
+    // 1. Jika ada stop loss dan take profit, gunakan keduanya untuk menghitung R:R
     if (formData.entry_price && formData.stop_loss && formData.take_profit) {
       const entry = parseFloat(formData.entry_price);
       const sl = parseFloat(formData.stop_loss);
@@ -859,7 +860,103 @@ export default function TradeForm({
         }));
       }
     }
-  }, [formData.entry_price, formData.stop_loss, formData.take_profit, formData.direction, formData.pair]);
+    // 2. Jika ada stop loss dan exit price, tapi tidak ada take profit, gunakan exit price sebagai pengganti TP
+    else if (formData.entry_price && formData.stop_loss && formData.exit_price && !formData.take_profit) {
+      const entry = parseFloat(formData.entry_price);
+      const sl = parseFloat(formData.stop_loss);
+      const exit = parseFloat(formData.exit_price);
+      
+      if (isNaN(entry) || isNaN(sl) || isNaN(exit)) return;
+      
+      // Hitung jarak dalam pips dari entry ke SL dan dari entry ke exit price
+      const slPips = Math.abs(calculatePipsFromPrice(
+        formData.entry_price, 
+        formData.stop_loss, 
+        formData.direction,
+        formData.pair
+      ));
+      
+      const exitPips = Math.abs(calculatePipsFromPrice(
+        formData.entry_price, 
+        formData.exit_price, 
+        formData.direction,
+        formData.pair
+      ));
+      
+      if (slPips && exitPips && slPips > 0) {
+        // Format: "1:2.5" (Risk : Reward)
+        const ratio = (exitPips / slPips).toFixed(1);
+        const riskRewardRatio = `1:${ratio}`;
+        
+        setFormData(prev => ({
+          ...prev,
+          risk_reward: riskRewardRatio,
+          _risk_reward_numeric: ratio // Simpan nilai numerik untuk keperluan perhitungan
+        }));
+      }
+    }
+    // 3. Fallback - Jika tidak ada stop loss tapi ada entry price dan exit price
+    else if (formData.entry_price && formData.exit_price && !formData.stop_loss) {
+      const entry = parseFloat(formData.entry_price);
+      const exit = parseFloat(formData.exit_price);
+      
+      if (isNaN(entry) || isNaN(exit) || entry === exit) return;
+      
+      // Untuk BUY, hitung risiko sebagai 1 unit
+      // Reward adalah seberapa jauh exit price dari entry price dalam persentase
+      let riskRewardValue;
+      
+      if (formData.direction === 'BUY') {
+        // Untuk BUY, profit jika exit > entry
+        if (exit > entry) {
+          const rewardPercentage = ((exit - entry) / entry) * 100;
+          riskRewardValue = (rewardPercentage / 1).toFixed(1); // Asumsi risk = 1%
+          const riskRewardRatio = `1:${riskRewardValue}`;
+          
+          setFormData(prev => ({
+            ...prev,
+            risk_reward: riskRewardRatio,
+            _risk_reward_numeric: riskRewardValue
+          }));
+        } else {
+          // Loss trade, R:R negatif
+          const lossPercentage = ((entry - exit) / entry) * 100;
+          riskRewardValue = (-lossPercentage / 1).toFixed(1); // Nilai negatif menunjukkan loss
+          const riskRewardRatio = `1:${riskRewardValue}`;
+          
+          setFormData(prev => ({
+            ...prev,
+            risk_reward: riskRewardRatio,
+            _risk_reward_numeric: riskRewardValue
+          }));
+        }
+      } else {
+        // Untuk SELL, profit jika entry > exit
+        if (entry > exit) {
+          const rewardPercentage = ((entry - exit) / entry) * 100;
+          riskRewardValue = (rewardPercentage / 1).toFixed(1); // Asumsi risk = 1%
+          const riskRewardRatio = `1:${riskRewardValue}`;
+          
+          setFormData(prev => ({
+            ...prev,
+            risk_reward: riskRewardRatio,
+            _risk_reward_numeric: riskRewardValue
+          }));
+        } else {
+          // Loss trade, R:R negatif
+          const lossPercentage = ((exit - entry) / entry) * 100;
+          riskRewardValue = (-lossPercentage / 1).toFixed(1); // Nilai negatif menunjukkan loss
+          const riskRewardRatio = `1:${riskRewardValue}`;
+          
+          setFormData(prev => ({
+            ...prev,
+            risk_reward: riskRewardRatio,
+            _risk_reward_numeric: riskRewardValue
+          }));
+        }
+      }
+    }
+  }, [formData.entry_price, formData.stop_loss, formData.take_profit, formData.exit_price, formData.direction, formData.pair]);
   
   // Format angka dengan koma sebagai pemisah ribuan dan titik sebagai desimal
   const formatNumber = (value) => {
@@ -958,7 +1055,7 @@ export default function TradeForm({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
               {/* Tanggal Buka */}
               <div className="mb-2">
-                <label htmlFor="open_date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label htmlFor="open_date" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Tanggal Buka <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -967,14 +1064,14 @@ export default function TradeForm({
                   name="open_date"
                   value={formData.open_date}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   required
                 />
               </div>
               
               {/* Tanggal Tutup */}
               <div className="mb-2">
-                <label htmlFor="close_date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label htmlFor="close_date" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Tanggal Tutup
                 </label>
                 <input
@@ -983,13 +1080,13 @@ export default function TradeForm({
                   name="close_date"
                   value={formData.close_date}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 />
               </div>
               
               {/* Pasangan Trading */}
               <div className="mb-2">
-                <label className="block text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-gray-700 dark:text-gray-200 mb-1">
                   Pair Trading <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -998,14 +1095,14 @@ export default function TradeForm({
                   value={formData.pair}
                   onChange={handleChange}
                   placeholder="XAUUSD"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   required
                 />
               </div>
               
               {/* Harga Entry */}
               <div className="mb-2">
-                <label htmlFor="entry_price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label htmlFor="entry_price" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Harga Entry <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -1014,7 +1111,7 @@ export default function TradeForm({
                   name="entry_price"
                   value={formData.entry_price ? formatNumber(formData.entry_price) : ''}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   placeholder="Contoh: 3,555.55"
                   required
                 />
@@ -1022,7 +1119,7 @@ export default function TradeForm({
               
               {/* Harga Exit */}
               <div className="mb-2">
-                <label htmlFor="exit_price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label htmlFor="exit_price" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Harga Exit
                 </label>
                 <input
@@ -1031,7 +1128,7 @@ export default function TradeForm({
                   name="exit_price"
                   value={formData.exit_price ? formatNumber(formData.exit_price) : ''}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   placeholder="Contoh: 3,800"
                 />
               </div>
@@ -1039,20 +1136,20 @@ export default function TradeForm({
               {/* Direction selector - tampilkan jika menggunakan mode pips pada SL */}
               {inputMode.sl === 'pips' && (
               <div className="mb-2">
-                <label className="block text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-gray-700 dark:text-gray-200 mb-1">
                     Arah Transaksi <span className="text-red-500">*</span>
                 </label>
                   <select
                     name="direction"
                     value={formData.direction}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                     required
                   >
                     <option value="BUY">BUY (LONG)</option>
                     <option value="SELL">SELL (SHORT)</option>
                   </select>
-                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                 <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">
                     Tentukan arah transaksi secara manual saat menggunakan mode pips
                 </p>
               </div>
@@ -1061,13 +1158,13 @@ export default function TradeForm({
               {/* Stop Loss - dengan toggle mode */}
               <div className="mb-2">
                 <div className="flex justify-between items-center mb-1">
-                  <label htmlFor="stop_loss" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label htmlFor="stop_loss" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
                     {inputMode.sl === 'price' ? 'Stop Loss' : 'Stop Loss (Pips)'}
                 </label>
                   <button
                     type="button"
                     onClick={() => toggleInputMode('sl')}
-                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
+                    className="text-xs text-indigo-600 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-200"
                   >
                     {inputMode.sl === 'price' ? 'Ubah ke Pips' : 'Ubah ke Harga'}
                   </button>
@@ -1080,7 +1177,7 @@ export default function TradeForm({
                   name="stop_loss"
                     value={formData.stop_loss ? formatNumber(formData.stop_loss) : ''}
                   onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                     placeholder="Contoh: 3,450"
                   />
                 ) : (
@@ -1090,11 +1187,11 @@ export default function TradeForm({
                     name="sl_pips"
                     value={formData.sl_pips ? formatNumber(formData.sl_pips) : ''}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                     placeholder="Contoh: 45"
                   />
                 )}
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">
                   {inputMode.sl === 'price' ? 'Cut Loss / Cut Profit' : 'Menentukan arah trading secara otomatis'}
                 </p>
               </div>
@@ -1102,13 +1199,13 @@ export default function TradeForm({
               {/* Take Profit - dengan toggle mode */}
               <div className="mb-2">
                 <div className="flex justify-between items-center mb-1">
-                  <label htmlFor="take_profit" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label htmlFor="take_profit" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
                     {inputMode.tp === 'price' ? 'Take Profit' : 'Take Profit (Pips)'}
                 </label>
                   <button
                     type="button"
                     onClick={() => toggleInputMode('tp')}
-                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
+                    className="text-xs text-indigo-600 dark:text-indigo-300 hover:text-indigo-800 dark:hover:text-indigo-200"
                   >
                     {inputMode.tp === 'price' ? 'Ubah ke Pips' : 'Ubah ke Harga'}
                   </button>
@@ -1121,7 +1218,7 @@ export default function TradeForm({
                   name="take_profit"
                     value={formData.take_profit ? formatNumber(formData.take_profit) : ''}
                   onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                     placeholder="Contoh: 4,567.89"
                   />
                 ) : (
@@ -1131,18 +1228,18 @@ export default function TradeForm({
                     name="tp_pips"
                     value={formData.tp_pips ? formatNumber(formData.tp_pips) : ''}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                     placeholder="Contoh: 100"
                   />
                 )}
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">
                   Harga untuk menutup posisi dengan profit
                 </p>
               </div>
               
               {/* Ukuran Lot */}
               <div className="mb-2">
-                <label htmlFor="lot_size" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label htmlFor="lot_size" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Ukuran Lot <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -1151,7 +1248,7 @@ export default function TradeForm({
                   name="lot_size"
                   value={formData.lot_size ? formatNumber(formData.lot_size) : ''}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   placeholder="Contoh: 0.01"
                   required
                 />
@@ -1159,7 +1256,7 @@ export default function TradeForm({
               
               {/* Profit/Loss */}
               <div className="mb-2">
-                <label htmlFor="profit_loss" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label htmlFor="profit_loss" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Profit/Loss
                 </label>
                 <input
@@ -1168,17 +1265,17 @@ export default function TradeForm({
                   name="profit_loss"
                   value={formData.profit_loss ? formatNumber(formData.profit_loss) : '0.00'}
                   readOnly
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white bg-gray-50 dark:bg-gray-800"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white bg-gray-50 dark:bg-gray-800"
                   placeholder="0.00"
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">
                   Dihitung otomatis berdasarkan harga entry, exit, dan ukuran lot
                 </p>
               </div>
               
               {/* Risk/Reward Ratio */}
               <div className="mb-2">
-                <label htmlFor="risk_reward" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label htmlFor="risk_reward" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Risk/Reward Ratio
                 </label>
                 <input
@@ -1187,18 +1284,22 @@ export default function TradeForm({
                   name="risk_reward"
                   value={formData.risk_reward ? formatNumber(formData.risk_reward) : ''}
                   readOnly
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white bg-gray-50 dark:bg-gray-800"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white bg-gray-50 dark:bg-gray-800"
                   placeholder="0"
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Dihitung otomatis dari stop loss dan take profit
+                <p className="text-xs text-gray-500 dark:text-gray-300 mt-1">
+                  {formData.take_profit ? 
+                    'Dihitung dari stop loss dan take profit' : 
+                    (formData.stop_loss && formData.exit_price) ? 
+                      'Dihitung dari stop loss dan harga exit' :
+                      'Dihitung dari harga exit jika stop loss tidak tersedia'}
                 </p>
               </div>
             </div>
             
             {/* Komentar */}
             <div className="mb-4">
-              <label className="block text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-gray-700 dark:text-gray-200 mb-1">
                 Komentar/Catatan
               </label>
               <textarea
@@ -1207,7 +1308,7 @@ export default function TradeForm({
                 onChange={handleChange}
                 rows="3"
                 placeholder="Masukkan strategi, analisis, alasan entry/exit, pelajaran dari trade ini..."
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               ></textarea>
             </div>
             
